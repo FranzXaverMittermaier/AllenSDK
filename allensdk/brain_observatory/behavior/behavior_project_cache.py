@@ -2,7 +2,8 @@ import numpy as np
 import os.path
 import csv
 from functools import partial
-from typing import Type, Callable, Optional, List, Any, Dict
+from typing import Type, Optional, List, Any, Dict, Union
+from pathlib import Path
 import pandas as pd
 import time
 import logging
@@ -15,8 +16,7 @@ from allensdk.brain_observatory.behavior.internal.behavior_project_base\
     import BehaviorProjectBase
 from allensdk.api.caching_utilities import one_file_call_caching, call_caching
 from allensdk.core.exceptions import MissingDataError
-from allensdk.core.auth_config import LIMS_DB_CREDENTIAL_MAP
-from allensdk.core.authentication import credential_injector, DbCredentials
+from allensdk.core.authentication import DbCredentials
 
 BehaviorProjectApi = Type[BehaviorProjectBase]
 
@@ -64,7 +64,9 @@ class BehaviorProjectCache(Cache):
             self,
             fetch_api: BehaviorProjectApi = BehaviorProjectLimsApi.default(),
             fetch_tries: int = 2,
-            **kwargs):
+            manifest: Optional[Union[str, Path]] = None,
+            version: Optional[str] = None,
+            cache: Optional[bool] = True):
         """ Entrypoint for accessing visual behavior data. Supports
         access to summaries of session data and provides tools for
         downloading detailed session data (such as dff traces).
@@ -93,19 +95,18 @@ class BehaviorProjectCache(Cache):
         fetch_tries :
             Maximum number of times to attempt a download before giving up and
             raising an exception. Note that this is total tries, not retries
-        **kwargs :
-            manifest : str or Path
-                full path at which manifest json will be stored
-            version : str
-                version of manifest file. If this mismatches the version
-                recorded in the file at manifest, an error will be raised.
-            other kwargs are passed to allensdk.api.cache.Cache
+        manifest : str or Path
+            full path at which manifest json will be stored
+        version : str
+            version of manifest file. If this mismatches the version
+            recorded in the file at manifest, an error will be raised.
+        cache : bool
+            Whether to write to the cache
         """
-        kwargs["manifest"] = kwargs.get("manifest",
-                                        "behavior_project_manifest.json")
-        kwargs["version"] = kwargs.get("version", self.MANIFEST_VERSION)
+        manifest_ = manifest or "behavior_project_manifest.json"
+        version_ = version or self.MANIFEST_VERSION
 
-        super().__init__(**kwargs)
+        super().__init__(manifest=manifest_, version=version_, cache=cache)
         self.fetch_api = fetch_api
         self.fetch_tries = fetch_tries
         self.logger = logging.getLogger(self.__class__.__name__)

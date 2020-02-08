@@ -1,6 +1,6 @@
 from functools import partial
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional,  Union
 import ast
 
 import pandas as pd
@@ -78,7 +78,9 @@ class EcephysProjectCache(Cache):
         fetch_api: EcephysProjectApi = EcephysProjectWarehouseApi.default(), 
         fetch_tries: int = 2, 
         stream_writer = write_from_stream,
-        **kwargs):
+        manifest: Optional[Union[str, Path]] = None,
+        version: Optional[str] = None,
+        cache: Optional[bool] = True):
         """ Entrypoint for accessing ecephys (neuropixels) data. Supports 
         access to cross-session data (like stimulus templates) and high-level 
         summaries of sessionwise data and provides tools for downloading detailed 
@@ -98,23 +100,24 @@ class EcephysProjectCache(Cache):
                 EcephysProjectLimsApi :: Fetches bleeding-edge data from the 
                     Allen Institute's internal database. Only works if you are 
                     on our internal network.
-        fetch_tries : 
+        fetch_tries : int
             Maximum number of times to attempt a download before giving up and 
             raising an exception. Note that this is total tries, not retries
-        **kwargs :
-            manifest : str or Path
-                full path at which manifest json will be stored
-            version : str
-                version of manifest file. If this mismatches the version 
-                recorded in the file at manifest, an error will be raised.
-            other kwargs are passed to allensdk.api.cache.Cache
+        manifest : str or Path
+            full path at which manifest json will be stored
+        version : str
+            version of manifest file. If this mismatches the version 
+            recorded in the file at manifest, an error will be raised.
+        cache: bool
+            Whether to write to the cache (default=True)
 
         """
+        manifest_ = manifest or "ecephys_project_manifest_json"
+        version_ = version or self.MANIFEST_VERSION
 
-        kwargs['manifest'] = kwargs.get('manifest', 'ecephys_project_manifest.json')
-        kwargs['version'] = kwargs.get('version', self.MANIFEST_VERSION)
-
-        super(EcephysProjectCache, self).__init__(**kwargs)
+        super(EcephysProjectCache, self).__init__(manifest=manifest_,
+                                                  version=version_,
+                                                  cache=cache)
         self.fetch_api = fetch_api
         self.fetch_tries = fetch_tries
         self.stream_writer = stream_writer
@@ -516,7 +519,7 @@ class EcephysProjectCache(Cache):
             "asynchronous": True
         } if fetch_api_kwargs is None else fetch_api_kwargs
 
-        if "stream_writer" not in kwargs:
+        if kwargs.get("stream_writer") is None:
             if fetch_api_kwargs.get("asynchronous", True):
                 kwargs["stream_writer"] = write_bytes_from_coroutine
             else:
@@ -528,20 +531,22 @@ class EcephysProjectCache(Cache):
         )
 
     @classmethod
-    def from_lims(cls, lims_kwargs=None, **kwargs):
+    def from_lims(cls, lims_kwargs=None, manifest=None, version=None, 
+                  cache=True):
         return cls._from_http_source_default(
             EcephysProjectLimsApi, lims_kwargs, **kwargs
         )
 
     @classmethod
-    def from_warehouse(cls, warehouse_kwargs=None, **kwargs):
+    def from_warehouse(cls, warehouse_kwargs=None, manifest=None, version=None,
+                       cache=True, stream_writer=None):
         return cls._from_http_source_default(
             EcephysProjectWarehouseApi, warehouse_kwargs, **kwargs
         )
 
 
     @classmethod
-    def fixed(cls, **kwargs):
+    def fixed(cls, manifest=None, version=None, cache=True):
         return cls(fetch_api=EcephysProjectFixedApi(), **kwargs)
 
 
